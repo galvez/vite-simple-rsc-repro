@@ -141,13 +141,11 @@ function vitePluginUseClient() {
   const transformPlugin = {
     name: vitePluginUseClient.name + ":transform",
     async transform(code, id, _options) {
-      if (this.environment.name !== "ssr") {
+      if (!['rsc'].includes(this.environment.name)) {
         return;
       }
       manager.clientReferenceMap.delete(id);
-      console.log(id)
       if (code.includes("use client")) {
-        console.log('!')
         const runtimeId = await normalizeReferenceId(id, "client");
         const ast = await parseAstAsync(code);
         let output = await transformDirectiveProxyExport(ast, {
@@ -156,21 +154,15 @@ function vitePluginUseClient() {
           runtime: "$$register",
         });
         if (output) {
-          console.log()
-          console.log()
-          console.log()
-          console.log(output.toString())
-          console.log()
-          console.log()
-          console.log()
-          process.exit()
           manager.clientReferenceMap.set(id, runtimeId);
           if (manager.buildStep === "scan") {
             return;
           }
           output.prepend(
-            `import { registerClientReference as $$register } from "/src/react-server.js";\n`,
+            `import { $$register } from "/src/react-server.js";\nconsole.log($$register)\n`,
           );
+          console.log('this.environment.name', this.environment.name)
+          console.log('>', { code: output.toString(), map: output.generateMap() })
           return { code: output.toString(), map: output.generateMap() };
         }
       }
@@ -206,7 +198,7 @@ function vitePluginUseClient() {
   return [transformPlugin, virtualPlugin];
 }
 
-async function normalizeReferenceId(id, name: "client" | "rsc") {
+async function normalizeReferenceId(id, name: "client" | "rsc" | "ssr") {
   if (manager.config.command === "build") {
     return hashString(path.relative(manager.config.root, id));
   }
@@ -214,6 +206,7 @@ async function normalizeReferenceId(id, name: "client" | "rsc") {
   // need to align with what Vite import analysis would rewrite
   // to avoid double modules on browser and ssr.
   const devEnv = globalThis.server.environments[name];
+  console.log('wtf')
   const transformed = await devEnv.transformRequest(
     "virtual:normalize-url/" + encodeURIComponent(id),
   );
@@ -225,12 +218,18 @@ async function normalizeReferenceId(id, name: "client" | "rsc") {
       runtimeId = m?.[1];
       break;
     }
+    case 'ssr': {
+      const m = transformed.code.match(/import\("(.*)"\)/);
+      runtimeId = m?.[1];
+      break;
+    }
     case 'rsc': {
       // `dynamicDeps` is available for ssrTransform
       runtimeId = transformed.dynamicDeps?.[0];
       break;
     }
   }
+  console.log({ runtimeId })
   ok(runtimeId);
   return runtimeId;
 }

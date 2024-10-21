@@ -63,6 +63,8 @@ export async function createServer(
     )
   }
 
+  console.log('oh my god / 1')
+
   let routes
   let renderToPipeableStream
   if (!isProd) {
@@ -72,6 +74,8 @@ export async function createServer(
     ;({ routes, renderToPipeableStream } = await import('./dist/rsc/index.js'))
   }
 
+  console.log('oh my god / 2')
+
   app.use('*', async (req, res) => {
     try {
       const url = req.originalUrl
@@ -80,6 +84,7 @@ export async function createServer(
       let template
       let renderRoute
       let renderRouter
+      console.log('/1')
       if (!isProd) {
         // always read fresh template in dev
         template = fs.readFileSync(resolve('index.html'), 'utf-8')
@@ -94,15 +99,16 @@ export async function createServer(
         renderRoute = entry.renderRoute
         renderRouter = entry.renderRouter
       }
+      console.log('/2')
 
+      console.log('!/1')
       const context = {}
       const { pipe } = renderToPipeableStream(renderRoute(routes, url))
       const routeStream = pipe(new PassThrough()) 
 
       const [before, after] = template.split(`<!--app-html-->`)
-
-        const pipe = renderRouter(routes, url, context, routeStream)
-        const appStream = pipe(new PassThrough())
+      console.log('!/2')
+      const appStream = renderRouter(routes, url, context, routeStream)(new PassThrough())
 
       res
         .status(200)

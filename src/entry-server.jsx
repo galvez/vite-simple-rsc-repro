@@ -6,6 +6,7 @@ import { StaticRouter } from 'react-router-dom/server'
 import { App } from './App.jsx'
 
 export function renderRouter(routes, url, context, rscPayload) {
+  console.log('renderRouter()')
   const promise = createFromNodeStream(rscPayload, {
     ssrManifest: {
       moduleMap: createModuleMap(),
@@ -24,6 +25,7 @@ export function renderRouter(routes, url, context, rscPayload) {
 }
 
 export function renderRoute(routes, url) {
+  console.log('renderRoute()')
   const match = matchRoutes(routes, url)
   return createElement(match[0].route.element)
 }

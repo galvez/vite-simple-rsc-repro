@@ -8,9 +8,9 @@ import ReactServer from 'react-server-dom-webpack/server.edge'
 // id: /src/components/counter.tsx
 // name: Counter
 
-export { routes } from './entry-routes.js'
+console.log('ReactServer', ReactServer)
 
-export function registerClientReference(id, name) {
+export function $$register(id, name) {
   // reuse everything but $$async: true for simplicity
   const reference = ReactServer.registerClientReference({}, id, name);
   return Object.defineProperties(
@@ -22,3 +22,4 @@ export function registerClientReference(id, name) {
   );
 }
  
+export { routes } from './entry-routes.js'
