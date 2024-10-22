@@ -207,7 +207,6 @@ async function normalizeReferenceId(id, name: "client" | "rsc" | "ssr") {
   // need to align with what Vite import analysis would rewrite
   // to avoid double modules on browser and ssr.
   const devEnv = globalThis.server.environments[name];
-  console.log('wtf')
   const transformed = await devEnv.transformRequest(
     "virtual:normalize-url/" + encodeURIComponent(id),
   );
