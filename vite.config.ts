@@ -4,7 +4,7 @@ import path from "node:path";
 import { type ResolvedConfig, defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { transformDirectiveProxyExport, transformServerActionServer } from "@hiogawa/transforms";
-import { defineConfig, parseAstAsync } from "vite";
+import { parseAstAsync } from "vite";
 import { createVirtualPlugin, vitePluginSilenceDirectiveBuildWarning } from "./src/shell/plugins.ts";
 
 export default defineConfig({
@@ -30,11 +30,12 @@ export default defineConfig({
   },
   builder: {
     async buildApp(builder) {
+      console.log('buildApp()')
       // pre-pass to collect all server/client references
       // by traversing server module graph and going over client boundary
       // TODO: this causes single plugin to be reused by two react-server builds
       manager.buildStep = "scan";
-      await builder.build(builder.environments["rsc"]!);
+      await builder.build(builder.environments["rsc"]);
       manager.buildStep = undefined;
 
       await builder.build(builder.environments.rsc)
@@ -161,9 +162,9 @@ function vitePluginUseClient() {
           output.prepend(
             `import { $$register } from "/src/react-server.js";\nconsole.log($$register)\n`,
           );
-          console.log('this.environment.name', this.environment.name)
-          console.log('>', { code: output.toString(), map: output.generateMap() })
-          return { code: output.toString(), map: output.generateMap() };
+          return { 
+            code: output.toString(), 
+            map: output.generateMap() };
         }
       }
       return;
@@ -179,10 +180,10 @@ function vitePluginUseClient() {
       }
 
   */
-  const virtualPlugin: Plugin = createVirtualPlugin(
+  const virtualPlugin = createVirtualPlugin(
     "client-references",
     function () {
-      ok(this.environment?.name !== "rsc");
+      console.log('this.environment?.name', this.environment?.name)
       ok(this.environment?.mode === "build");
 
       return [
@@ -234,7 +235,7 @@ async function normalizeReferenceId(id, name: "client" | "rsc" | "ssr") {
   return runtimeId;
 }
 
-function virtualNormalizeUrlPlugin(): Plugin {
+function virtualNormalizeUrlPlugin() {
   return {
     name: virtualNormalizeUrlPlugin.name,
     apply: "serve",

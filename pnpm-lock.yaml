@@ -11,6 +11,9 @@ importers:
       '@hiogawa/transforms':
         specifier: ^0.0.0
         version: 0.0.0
+      '@hiogawa/utils':
+        specifier: ^1.7.0
+        version: 1.7.0
       react:
         specifier: 19.0.0-beta-26f2496093-20240514
         version: 19.0.0-beta-26f2496093-20240514
@@ -282,6 +285,9 @@ packages:
 
   '@hiogawa/transforms@0.0.0':
     resolution: {integrity: sha512-FxZMXDgtqN0kjBN94r2kUmE6RfgHIcFch2lgpL0vBKTykIstk9gDhPLFmU9OMZsbwo4Q92njs+4I4UqF9fEZ+A==}
+
+  '@hiogawa/utils@1.7.0':
+    resolution: {integrity: sha512-ghiEFWBR1NENoHn+lSuW7liicTIzVPN+8Srm5UedCTw43gus0mlse6Wp2lz6GmbOXJ/CalMPp/0Tz2X8tajkAg==}
 
   '@jridgewell/gen-mapping@0.3.5':
     resolution: {integrity: sha512-IzL8ZoEDIBRWEzlCcRhOaCupYyN5gdIK+Q6fbFdPDg6HqX6jpkItn7DFIpW9LQzXG6Df9sA7+OKnq0qlz/GaQg==}
@@ -1327,6 +1333,8 @@ snapshots:
       estree-walker: 3.0.3
       magic-string: 0.30.12
       periscopic: 4.0.2
+
+  '@hiogawa/utils@1.7.0': {}
 
   '@jridgewell/gen-mapping@0.3.5':
     dependencies:

@@ -4,9 +4,9 @@ import { createFromNodeStream } from 'react-server-dom-webpack/client.node'
 import { matchRoutes } from 'react-router-dom'
 import { StaticRouter } from 'react-router-dom/server'
 import { App } from './App.jsx'
+import { routes } from './entry-routes.js'
 
-export function renderRouter(routes, url, context, rscPayload) {
-  console.log('renderRouter()')
+export function renderRouter(url, context, rscPayload) {
   const promise = createFromNodeStream(rscPayload, {
     ssrManifest: {
       moduleMap: createModuleMap(),
@@ -25,7 +25,6 @@ export function renderRouter(routes, url, context, rscPayload) {
 }
 
 export function renderRoute(routes, url) {
-  console.log('renderRoute()')
   const match = matchRoutes(routes, url)
   return createElement(match[0].route.element)
 }

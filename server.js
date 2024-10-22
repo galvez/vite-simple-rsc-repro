@@ -9,8 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const isTest = process.env.NODE_ENV === 'test' || !!process.env.VITE_TEST_BUILD
 
-process.env.MY_CUSTOM_SECRET = 'API_KEY_qwertyuiop'
-
+const bundlerConfig = createBundlerConfig()
 export async function createServer(
   root = process.cwd(),
   isProd = process.env.NODE_ENV === 'production',
@@ -63,57 +62,51 @@ export async function createServer(
     )
   }
 
-  console.log('oh my god / 1')
-
+  let entry
+  let renderRoute
+  let renderRouter
   let routes
   let renderToPipeableStream
   if (!isProd) {
+    const ssrRunner = createServerModuleRunner(vite.environments.ssr)
+    entry = (await ssrRunner.import('/src/entry-server.jsx'))
+    ;({ renderRoute, renderRouter } = entry)
+    //
     const reactServerRunner = createServerModuleRunner(vite.environments.rsc)
     ;({ routes, renderToPipeableStream } = await reactServerRunner.import('/src/react-server.js'))
   } else {
-    ;({ routes, renderToPipeableStream } = await import('./dist/rsc/index.js'))
+    entry = (await import('./dist/server/entry-server.js'))
+    ;({ renderRoute, renderRouter } = entry)
+    //
+    ;({ routes, renderToPipeableStream } = await import('./dist/rsc/index.js'))    
   }
-
-  console.log('oh my god / 2')
 
   app.use('*', async (req, res) => {
     try {
       const url = req.originalUrl
 
-      let entry
       let template
-      let renderRoute
-      let renderRouter
-      console.log('/1')
       if (!isProd) {
         // always read fresh template in dev
         template = fs.readFileSync(resolve('index.html'), 'utf-8')
         template = await vite.transformIndexHtml(url, template)
-        entry = (await vite.ssrLoadModule('/src/entry-server.jsx'))
-        renderRoute = entry.renderRoute
-        renderRouter = entry.renderRouter
       } else {
         template = indexProd
-        // @ts-ignore
-        entry = (await import('./dist/server/entry-server.js'))
-        renderRoute = entry.renderRoute
-        renderRouter = entry.renderRouter
       }
-      console.log('/2')
 
-      console.log('!/1')
+      // SSR the actual page route as a **server component**
       const context = {}
-      const { pipe } = renderToPipeableStream(renderRoute(routes, url))
+      const { pipe } = renderToPipeableStream(renderRoute(routes, url), bundlerConfig)
       const routeStream = pipe(new PassThrough()) 
 
-      const [before, after] = template.split(`<!--app-html-->`)
-      console.log('!/2')
-      const appStream = renderRouter(routes, url, context, routeStream)(new PassThrough())
+      // SSR the router shell route as a **client component**
+      const appStream = renderRouter(url, context, routeStream)(new PassThrough())
 
       res
         .status(200)
         .set({ 'Content-Type': 'text/html' })
-      
+
+      const [before, after] = template.split(`<!--app-html-->`)      
       Readable.from(generateStream(before, appStream, after))
         .pipe(res)
 
@@ -148,4 +141,16 @@ if (!isTest) {
       console.log('http://localhost:3000')
     })
   )
+}
+
+function createBundlerConfig() {
+  return new Proxy(
+    {},
+    {
+      get(_target, $$id, _receiver) {
+        let [id, name] = $$id.split("#");
+        return { id, name, chunks: [] };
+      },
+    },
+  );
 }

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@hiogawa/transforms": "^0.0.0",
+    "@hiogawa/utils": "^1.7.0",
     "react": "19.0.0-beta-26f2496093-20240514",
     "react-dom": "19.0.0-beta-26f2496093-20240514",
     "react-router": "6.27.0",
