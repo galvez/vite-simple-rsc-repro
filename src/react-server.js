@@ -1,9 +1,18 @@
+import { PassThrough } from 'node:stream';
 import { memoize } from '@hiogawa/utils'
 import { ok } from 'node:assert'
-export { renderToPipeableStream } from 'react-server-dom-webpack/server'
-import { createElement, use } from 'react'
-import ReactServer from 'react-server-dom-webpack/server.edge'
+import { renderToPipeableStream, registerClientReference } from 'react-server-dom-webpack/server'
+import { createElement } from 'react'
 
+export function renderRoute (match) {
+  // initClientReferences()
+  // SSR the actual page route as a **server component**  
+  const { pipe: pipeRoute } = renderToPipeableStream(
+    createElement(match[0].route.element), 
+    createBundlerConfig()
+  )
+  return pipeRoute(new PassThrough()) 
+}
 // https://github.com/facebook/react/blob/c8a035036d0f257c514b3628e927dd9dd26e5a09/packages/react-server-dom-webpack/src/ReactFlightWebpackReferences.js#L43
 
 // $$id: /src/components/counter.tsx#Counter
@@ -13,7 +22,7 @@ import ReactServer from 'react-server-dom-webpack/server.edge'
 
 export function $$register(id, name) {
   // reuse everything but $$async: true for simplicity
-  const reference = ReactServer.registerClientReference({}, id, name);
+  const reference = registerClientReference({}, id, name);
   return Object.defineProperties(
     {},
     {
@@ -23,7 +32,7 @@ export function $$register(id, name) {
   );
 }
 
-async function importClientRefrence(id) {
+async function importClientReference(id) {
   if (import.meta.env.DEV) {
     return import(/* @vite-ignore */ id)
   } else {
@@ -36,6 +45,27 @@ async function importClientRefrence(id) {
   }
 }
 
-globalThis.__webpack_require__ = memoize(importClientRefrence)
+export function initClientReferences() {
+  Object.assign(globalThis, {
+    __vite_react_server_webpack_require__: memoize(importClientReference),
+    __webpack_require__: memoize(importClientReference)
+  })
+}
+
+globalThis.__vite_react_server_webpack_require__ = memoize(importClientReference)
+globalThis.__webpack_require__ = memoize(importClientReference)
  
 export { routes } from './entry-routes.js'
+
+
+function createBundlerConfig() {
+  return new Proxy(
+    {},
+    {
+      get(_target, $$id, _receiver) {
+        let [id, name] = $$id.split("#");
+        return { id, name, chunks: [] };
+      },
+    },
+  );
+}

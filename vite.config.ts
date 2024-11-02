@@ -1,7 +1,7 @@
 import { ok } from 'node:assert'
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { type ResolvedConfig, defineConfig } from 'vite'
+import { type ResolvedConfig, defineConfig, createServerModuleRunner } from 'vite'
 import react from '@vitejs/plugin-react'
 import { transformDirectiveProxyExport, transformServerActionServer } from "@hiogawa/transforms";
 import { parseAstAsync } from "vite";
@@ -15,7 +15,11 @@ export default defineConfig({
         manager.config = config;
       },
       configureServer(server) {
-        globalThis.server = server
+        const reactServerEnv = server.environments['rsc'];
+        // no hmr setup for custom node environment
+        const reactServerRunner = createServerModuleRunner(reactServerEnv);
+        globalThis.server = server;
+        globalThis.reactServerRunner = reactServerRunner;
       }
     },
     vitePluginUseClient(),
@@ -142,6 +146,7 @@ function vitePluginUseClient() {
   const transformPlugin = {
     name: vitePluginUseClient.name + ":transform",
     async transform(code, id, _options) {
+      console.log(_options, id)
       if (!['rsc'].includes(this.environment.name)) {
         return;
       }
@@ -160,7 +165,7 @@ function vitePluginUseClient() {
             return;
           }
           output.prepend(
-            `import { $$register } from "/src/react-server.js";\nconsole.log($$register)\n`,
+            `import { $$register } from "/src/react-server.js";`,
           );
           return { 
             code: output.toString(), 
@@ -196,7 +201,36 @@ function vitePluginUseClient() {
     },
   );
 
-  return [transformPlugin, virtualPlugin];
+  const patchPlugin = {
+    name: 'patch-react-server-dom-webpack',
+    transform(code, id, _options) {
+      if (
+        this.environment?.name === "rsc"
+      ) {
+        console.log(id)
+        // rename webpack markers in react server runtime
+        // to avoid conflict with ssr runtime which shares same globals
+        code = code.replaceAll(
+          "__webpack_require__",
+          "__vite_react_server_webpack_require__",
+        );
+        code = code.replaceAll(
+          "__webpack_chunk_load__",
+          "__vite_react_server_webpack_chunk_load__",
+        );
+
+        // make server reference async for simplicity (stale chunkCache, etc...)
+        // see TODO in https://github.com/facebook/react/blob/33a32441e991e126e5e874f831bd3afc237a3ecf/packages/react-server-dom-webpack/src/ReactFlightClientConfigBundlerWebpack.js#L131-L132
+        code = code.replaceAll("if (isAsyncImport(metadata))", "if (true)");
+        code = code.replaceAll("4 === metadata.length", "true");
+
+        return { code, map: null };
+      }
+      return;
+    },
+  };
+
+  return [transformPlugin, patchPlugin, virtualPlugin];
 }
 
 async function normalizeReferenceId(id, name: "client" | "rsc" | "ssr") {
@@ -224,6 +258,7 @@ async function normalizeReferenceId(id, name: "client" | "rsc" | "ssr") {
       break;
     }
     case 'rsc': {
+      console.log('transformed.dynamicDeps', transformed.dynamicDeps)
       // `dynamicDeps` is available for ssrTransform
       runtimeId = transformed.dynamicDeps?.[0];
       break;

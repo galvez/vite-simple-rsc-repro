@@ -1,13 +1,19 @@
+import { memoize } from '@hiogawa/utils'
+import { PassThrough } from 'node:stream'
 import { use, createElement } from 'react'
 import { renderToPipeableStream } from 'react-dom/server'
 import { createFromNodeStream } from 'react-server-dom-webpack/client.node'
-import { matchRoutes } from 'react-router-dom'
 import { StaticRouter } from 'react-router-dom/server'
 import { App } from './App.jsx'
 import { routes } from './entry-routes.js'
+import { matchRoutes } from 'react-router-dom'
 
-export function renderRouter(url, context, rscPayload) {
-  const promise = createFromNodeStream(rscPayload, {
+export async function renderRouter(url) {
+  const reactServerRunner = await importReactServer()
+  const context = {}
+  const match = matchRoutes(reactServerRunner.routes, url)
+  const routeStream = await reactServerRunner.renderRoute(match)
+  const promise = createFromNodeStream(routeStream, {
     ssrManifest: {
       moduleMap: createModuleMap(),
       moduleLoading: null,
@@ -21,12 +27,7 @@ export function renderRouter(url, context, rscPayload) {
       </App>
     </StaticRouter>
   );
-  return pipe
-}
-
-export function renderRoute(routes, url) {
-  const match = matchRoutes(routes, url)
-  return createElement(match[0].route.element)
+  return pipe(new PassThrough())
 }
 
 export function createModuleMap() {
@@ -50,3 +51,38 @@ export function createModuleMap() {
     },
   );
 }
+
+
+async function importReactServer() {
+  let mod
+  if (import.meta.env.DEV) {
+    mod = (await globalThis.reactServerRunner.import(
+      '/src/react-server.js',
+    ));
+  } else {
+    mod = import('/dist/react-server/index.js')
+  }
+  return mod;
+}
+
+
+async function importClientReference(id) {
+  if (import.meta.env.DEV) {
+    return import(/* @vite-ignore */ id)
+  } else {
+    const clientReferences = await import(
+      'virtual:client-references'
+    )
+    const dynImport = clientReferences.default[id];
+    ok(dynImport, `client reference not found '${id}'`)
+    return dynImport()
+  }
+}
+
+export function initClientReferences() {
+  Object.assign(globalThis, {
+    __webpack_require__: memoize(importClientReference)
+  })
+}
+
+globalThis.__webpack_require__ = memoize(importClientReference)

@@ -9,7 +9,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const isTest = process.env.NODE_ENV === 'test' || !!process.env.VITE_TEST_BUILD
 
-const bundlerConfig = createBundlerConfig()
 export async function createServer(
   root = process.cwd(),
   isProd = process.env.NODE_ENV === 'production',
@@ -94,13 +93,10 @@ export async function createServer(
         template = indexProd
       }
 
-      // SSR the actual page route as a **server component**
-      const context = {}
-      const { pipe } = renderToPipeableStream(renderRoute(routes, url), bundlerConfig)
-      const routeStream = pipe(new PassThrough()) 
-
       // SSR the router shell route as a **client component**
-      const appStream = renderRouter(url, context, routeStream)(new PassThrough())
+      const appStream = await renderRouter(url)
+
+      console.log('appStream', appStream)
 
       res
         .status(200)
@@ -141,16 +137,4 @@ if (!isTest) {
       console.log('http://localhost:3000')
     })
   )
-}
-
-function createBundlerConfig() {
-  return new Proxy(
-    {},
-    {
-      get(_target, $$id, _receiver) {
-        let [id, name] = $$id.split("#");
-        return { id, name, chunks: [] };
-      },
-    },
-  );
 }
