@@ -22,6 +22,7 @@ export default defineConfig({
         globalThis.reactServerRunner = reactServerRunner;
       }
     },
+    vitePluginServerAction(),
     vitePluginUseClient(),
     vitePluginSilenceDirectiveBuildWarning(),
     // vitePluginServerAction(),
@@ -231,6 +232,104 @@ function vitePluginUseClient() {
   };
 
   return [transformPlugin, patchPlugin, virtualPlugin];
+}
+
+
+function vitePluginServerAction() {
+  /*
+    [input]
+
+      "use server"
+      export function hello() {}
+
+    [output] (react-server)
+
+      export function hello() { ... }
+      import { registerServerReference as $$register } from "...runtime..."
+      hello = $$register(hello, "<id>", "hello");
+
+    [output] (client)
+
+      import { createServerReference as $$proxy } from "...runtime..."
+      export const hello = $$proxy("<id>", "hello");
+
+  */
+  const transformPlugin = {
+    name: vitePluginServerAction.name + ":transform",
+    async transform(code, id) {
+      if (!this.environment || !code.includes('use server') || id.includes('/.vite/deps/')) {
+        return
+      }
+      const ast = await parseAstAsync(code)
+      const runtimeId = await normalizeReferenceId(id, 'rsc')
+      if (this.environment.name === 'rsc') {
+        const { output } = await transformServerActionServer(code, ast, {
+          id: runtimeId,
+          runtime: '$$register',
+        });
+        if (output.hasChanged()) {
+          manager.serverReferenceMap.set(id, runtimeId);
+          output.prepend(
+            `import { registerServerReference as $$register } from "/src/features/server-action/server";\n`,
+          );
+          const code = output.toString()
+          console.log('code', code)
+          return { code, map: output.generateMap() };
+        }
+      } else {
+        let output = await transformDirectiveProxyExport(ast, {
+          id: runtimeId,
+          runtime: "$$proxy",
+          directive: "use server",
+        });
+        console.log('output/2', output)
+        if (output) {
+          manager.serverReferenceMap.set(id, runtimeId);
+          const runtime =
+            this.environment.name === "client" ? "browser" : "ssr";
+          output.prepend(
+            `import { createServerReference as $$proxy } from "/src/features/server-action/${runtime}";\n`,
+          );
+          const code = output.toString()
+          console.log('code', code)
+          return { code, map: output.generateMap() };
+        }
+      }
+      return;
+    },
+  };
+
+  /*
+    [output]
+
+      export default {
+        "<id>": () => import("<id>"),
+        ...
+      }
+
+  */
+  const virtualServerReference = createVirtualPlugin(
+    'server-references',
+    async function () {
+      if (manager.buildStep === 'scan') {
+        return `export default {}`;
+      }
+      if (
+        this.environment?.name === 'rsc' &&
+        this.environment.mode === 'build'
+      ) {
+        return [
+          'export default {',
+          ...[...manager.serverReferenceMap.entries()].map(
+            ([id, runtimeId]) => `'${runtimeId}': () => import('${id}'),\n`,
+          ),
+          '}',
+        ].join('\n');
+      }
+    },
+  );
+
+  return [transformPlugin, virtualServerReference];
 }
 
 async function normalizeReferenceId(id, name: "client" | "rsc" | "ssr") {
